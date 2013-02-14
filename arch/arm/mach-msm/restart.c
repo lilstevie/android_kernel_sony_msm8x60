@@ -50,6 +50,7 @@
 #define SCM_IO_DISABLE_PMIC_ARBITER	1
 
 static int restart_mode;
+static char* bootloader;
 void *restart_reason;
 
 int pmic_reset_irq;
@@ -71,6 +72,13 @@ extern void arm_machine_flush_console(void);
 #include <asm/proc-fns.h>
 #include <asm/cacheflush.h>
 #include <mach/system.h>
+
+static int __init get_bootloader(char *str)
+{
+    bootloader = str;
+    return 1;
+}
+__setup("androidboot.bootloader=", get_bootloader);
 
 static void msm_panic_restart(char mode, const char *cmd)
 {
@@ -228,6 +236,13 @@ void msm_restart(char mode, const char *cmd)
 	pm8xxx_reset_pwr_off(1);
 
 	if (cmd != NULL) {
+
+		if (!strncmp(bootloader, "lk", 2))
+                {
+			if(!strncmp(cmd, "s1boot", 6))
+				__raw_writel(0x77665500, restart_reason - 0x1B0);
+                }
+
 		if (!strncmp(cmd, "bootloader", 10)) {
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
@@ -290,7 +305,10 @@ static int __init msm_restart_init(void)
 	set_dload_mode(download_mode);
 #endif
 	msm_tmr0_base = msm_timer_get_timer0_base();
-	restart_reason = MSM_IMEM_BASE + RESTART_REASON_ADDR;
+	if(!strncmp(bootloader, "lk", 2))
+		restart_reason = MSM_IMEM_BASE + RESTART_REASON_ADDR + 0x1B0;
+	if(!strncmp(bootloader, "s1", 2))
+		restart_reason = MSM_IMEM_BASE + RESTART_REASON_ADDR;
 	pm_power_off = msm_power_off;
 
 	return 0;
